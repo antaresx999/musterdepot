@@ -6,7 +6,7 @@
   <div>
     <div class="crumbs"><a href="/">Depots</a> › <a href="/depot/{{ pf.id }}">{{ pf.name }}</a> ›</div>
     <h1>Auftrag: {{ inst.name }}</h1>
-    <p class="muted">{{ inst.ticker }} · {{ KIND_LABELS[inst.kind] }}{% if inst.exchange %} · {{ inst.exchange }}{% endif %} · <a href="/titel/{{ inst.id }}?depot={{ pf.id }}">Kursverlauf</a></p>
+    <p class="muted">{{ inst.ticker }} · {{ KIND_LABELS[inst.kind] }}{% if inst.exchange %} · {{ inst.exchange }}{% endif %} · <a href="/titel/{{ inst.id }}?depot={{ pf.id }}">Kursverlauf</a> · <a href="/depot/{{ pf.id }}/nachtragen/{{ inst.id }}">Früheren Kauf nachtragen</a></p>
   </div>
 </div>
 {% if error %}<div class="alert">Hinweis zur Kursabfrage: {{ error }}</div>{% endif %}

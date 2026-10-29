@@ -1,5 +1,6 @@
 """Handelslogik: Aufträge ausführen, Gebühren, Ein-/Auszahlungen, Dividenden, Bewertung."""
 import logging
+import re
 from datetime import date, datetime, timezone
 
 from . import db, quotes
@@ -295,7 +296,21 @@ def valuation(conn, portfolio):
     flows = conn.execute("SELECT COALESCE(SUM(amount),0) FROM transactions WHERE portfolio_id=? AND "
                          "kind IN ('deposit','withdraw') AND created_at>=?",
                          (pid, midnight.strftime("%Y-%m-%d %H:%M:%S"))).fetchone()[0]
-    day_base = (prev[0] if prev else 0) + flows
+    if prev:
+        day_base = prev[0] + flows
+    else:
+        # Noch kein Tageswert von gestern (Depot heute angelegt): Basis sind die Einzahlungen, wobei vor
+        # heute datierte (nachgetragene) Käufe mit dem Vortageskurs statt dem Einstand zählen.
+        day_base = invested
+        old = db.all_(conn, "SELECT instrument_id, SUM(quantity) AS qty, -SUM(amount) AS cost FROM transactions "
+                            "WHERE portfolio_id=? AND kind='buy' AND created_at<? GROUP BY instrument_id",
+                      (pid, midnight.strftime("%Y-%m-%d %H:%M:%S")))
+        by_id = {p["id"]: p for p in positions}
+        for o in old:
+            p = by_id.get(o["instrument_id"])
+            if p and p["fx"] is not None and p["price"] is not None:
+                ref = p["prev_close"] if p["prev_close"] else p["price"]
+                day_base += o["qty"] * ref * p["fx"] - o["cost"]
     day_change = value - day_base if day_base > 0 else 0.0
     return {
         "positions": positions,
@@ -313,6 +328,71 @@ def valuation(conn, portfolio):
         "day_pct": day_change / day_base * 100 if complete and day_base > 0 else None,
         "complete": complete,
     }
+
+
+def book_past_buy(portfolio_id, instrument_id, day, quantity, price, fx, fee, funding="deposit", note=""):
+    """Einen früheren (z. B. realen) Kauf nachträglich erfassen.
+    funding='deposit': Kaufbetrag wird gleichzeitig als Einzahlung gebucht (Bargeld bleibt gleich).
+    funding='cash':    Kaufbetrag wird vom vorhandenen Bargeld abgezogen."""
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", day or ""):
+        raise TradeError("Bitte ein gültiges Kaufdatum angeben.")
+    if day > date.today().isoformat():
+        raise TradeError("Das Kaufdatum liegt in der Zukunft.")
+    if day < "1970-01-01":
+        raise TradeError("Das Kaufdatum ist zu weit in der Vergangenheit.")
+    if not quantity or quantity <= 0:
+        raise TradeError("Bitte eine positive Stückzahl angeben.")
+    if not price or price <= 0:
+        raise TradeError("Bitte den Kaufkurs angeben.")
+    if not fx or fx <= 0:
+        raise TradeError("Bitte einen gültigen Wechselkurs angeben.")
+    if fee is not None and fee < 0:
+        raise TradeError("Die Gebühr darf nicht negativ sein.")
+    if funding not in ("deposit", "cash"):
+        raise TradeError("Ungültige Finanzierung.")
+    quantity = round(quantity, 8)
+    gross = money(quantity * price * fx)
+    when = day + " 12:00:00"
+    with db.get() as conn:
+        pf = db.one(conn, "SELECT * FROM portfolios WHERE id=?", (portfolio_id,))
+        fee = fee_for(pf, gross) if fee is None else money(fee)  # leer = Gebührenregel des Depots
+        total = money(gross + fee)
+        if funding == "cash" and total > pf["cash"] + 0.005:
+            raise TradeError("Zu wenig Bargeld: benötigt {:.2f} {}, vorhanden {:.2f} {}. Wähle «Als Einzahlung "
+                             "verbuchen» oder zahle zuerst Geld ein.".format(total, pf["currency"], pf["cash"],
+                                                                            pf["currency"]))
+        inst = db.one(conn, "SELECT * FROM instruments WHERE id=?", (instrument_id,))
+        if funding == "deposit":
+            conn.execute("INSERT INTO transactions (portfolio_id, kind, amount, note, created_at) VALUES (?,?,?,?,?)",
+                         (portfolio_id, "deposit", total, "Einbuchung für Kauf {}".format(inst["name"]), when))
+        else:
+            conn.execute("UPDATE portfolios SET cash=? WHERE id=?", (money(pf["cash"] - total), portfolio_id))
+        hold = db.one(conn, "SELECT * FROM holdings WHERE portfolio_id=? AND instrument_id=?",
+                      (portfolio_id, instrument_id))
+        if hold:
+            conn.execute("UPDATE holdings SET quantity=quantity+?, cost=cost+? WHERE portfolio_id=? "
+                         "AND instrument_id=?", (quantity, total, portfolio_id, instrument_id))
+        else:
+            conn.execute("INSERT INTO holdings (portfolio_id, instrument_id, quantity, cost) VALUES (?,?,?,?)",
+                         (portfolio_id, instrument_id, quantity, total))
+        conn.execute(
+            "INSERT INTO transactions (portfolio_id, instrument_id, kind, quantity, price, fx, fee, amount, note, "
+            "created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (portfolio_id, instrument_id, "buy", quantity, price, fx, fee, -total,
+             ("Nachgetragen. " + note).strip() if note else "Nachgetragen", when))
+        conn.execute("INSERT OR IGNORE INTO price_history (instrument_id, day, close) VALUES (?,?,?)",
+                     (instrument_id, day, price))
+        # Bereits gespeicherte Tageswerte ab dem Kaufdatum nachführen (Grafik, Tagesveränderung)
+        for snap in db.all_(conn, "SELECT day FROM snapshots WHERE portfolio_id=? AND day>=?", (portfolio_id, day)):
+            row = conn.execute("SELECT close FROM price_history WHERE instrument_id=? AND day<=? "
+                               "ORDER BY day DESC LIMIT 1", (instrument_id, snap["day"])).fetchone()
+            value = quantity * (row[0] if row else price) * fx
+            if funding == "deposit":
+                conn.execute("UPDATE snapshots SET value=ROUND(value+?,2), invested=ROUND(invested+?,2) "
+                             "WHERE portfolio_id=? AND day=?", (value, total, portfolio_id, snap["day"]))
+            else:
+                conn.execute("UPDATE snapshots SET value=ROUND(value+?,2) WHERE portfolio_id=? AND day=?",
+                             (value - total, portfolio_id, snap["day"]))
 
 
 def snapshot(conn, portfolio):

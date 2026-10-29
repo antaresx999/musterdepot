@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Kauf nachtragen · {{ inst.name }}{% endblock %}
+{% block content %}
+{% set c = pf.currency %}
+{% set foreign = inst.currency != c %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Depots</a> › <a href="/depot/{{ pf.id }}">{{ pf.name }}</a> ›</div>
+    <h1>Kauf nachtragen: {{ inst.name }}</h1>
+    <p class="muted">{{ inst.ticker }} · {{ KIND_LABELS[inst.kind] }}{% if inst.exchange %} · {{ inst.exchange }}{% endif %} · Titelwährung {{ inst.currency }}</p>
+  </div>
+</div>
+
+<div class="grid-2 trade">
+  <form class="card" method="post" id="past-form"
+        data-api="/api/titel/{{ inst.id }}/kurs?depot={{ pf.id }}" data-currency="{{ c }}" data-foreign="{{ 1 if foreign else 0 }}"
+        data-cash="{{ pf.cash }}" data-fee-fixed="{{ pf.fee_fixed }}" data-fee-pct="{{ pf.fee_pct }}" data-fee-min="{{ pf.fee_min }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="row">
+      <label>Kaufdatum<input type="date" name="day" id="pb-day" value="{{ form.day or '' }}" max="{{ today }}" required></label>
+      <label>Stück<input name="quantity" id="pb-qty" value="{{ form.quantity or '' }}" inputmode="decimal" required></label>
+    </div>
+    <div class="row">
+      <label>Kaufkurs pro Stück ({{ inst.currency }})<input name="price" id="pb-price" value="{{ form.price or '' }}" inputmode="decimal" required></label>
+      {% if foreign %}
+      <label>Wechselkurs (1 {{ inst.currency }} = ? {{ c }})<input name="fx" id="pb-fx" value="{{ form.fx or '' }}" inputmode="decimal" required></label>
+      {% else %}<input type="hidden" name="fx" id="pb-fx" value="1">{% endif %}
+    </div>
+    <p class="hint" id="pb-suggest">Nach Wahl des Datums wird der damalige Schlusskurs als Vorschlag eingesetzt. Trag am besten den Kurs aus deiner Abrechnung ein.</p>
+    <label>Gebühr ({{ c }})<input name="fee" id="pb-fee" value="{{ form.fee or '' }}" inputmode="decimal" placeholder="leer = nach den Gebühren des Depots"></label>
+
+    <fieldset>
+      <legend>Woher kommt das Geld?</legend>
+      <label class="radio"><input type="radio" name="funding" value="deposit" {{ 'checked' if form.funding != 'cash' }}>
+        <span><b>Als Einzahlung verbuchen</b><br><small class="muted">Der Kaufbetrag wird gleichzeitig eingezahlt – dein Bargeld bleibt gleich. Passend für reale Käufe, die du hier abbilden willst.</small></span></label>
+      <label class="radio"><input type="radio" name="funding" value="cash" {{ 'checked' if form.funding == 'cash' }}>
+        <span><b>Vom Bargeld abziehen</b><br><small class="muted">Wie ein normaler Kauf aus dem vorhandenen Guthaben ({{ pf.cash|money(c) }}).</small></span></label>
+    </fieldset>
+    <label>Notiz <small class="muted">(optional, z. B. Bank oder Abrechnungsnummer)</small><input name="note" value="{{ form.note or '' }}" maxlength="200"></label>
+
+    <div class="estimate">
+      <div><span>Kurswert</span><b id="pb-gross">–</b></div>
+      <div><span>Gebühr</span><b id="pb-feeout">–</b></div>
+      <div class="total"><span>Einstandswert</span><b id="pb-total">–</b></div>
+      <p class="hint" id="pb-warn"></p>
+    </div>
+    <button class="btn primary wide">Kauf nachtragen</button>
+  </form>
+
+  <div class="card">
+    <h2>So funktioniert es</h2>
+    <ul class="plain">
+      <li>Der Kauf erscheint mit dem gewählten Datum in den Buchungen und zählt mit diesem Einstand für Gewinn und Verlust.</li>
+      <li>Es wird <b>kein Auftrag</b> ausgeführt und kein aktueller Kurs verwendet – es gelten genau deine Angaben.</li>
+      <li>Bereits gespeicherte Tageswerte ab dem Kaufdatum werden nachgeführt. Die Depotwert-Grafik beginnt aber nicht vor dem Anlegen des Depots.</li>
+      <li>Mehrere Käufe desselben Titels werden zu einem Durchschnitts-Einstand zusammengefasst.</li>
+      {% if foreign %}<li>Den Wechselkurs findest du auf deiner Abrechnung. Der Vorschlag ist der Tageskurs von Yahoo Finance.</li>{% endif %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

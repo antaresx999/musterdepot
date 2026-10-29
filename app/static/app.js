@@ -237,3 +237,67 @@ if (tf) {
   tf.addEventListener("change", update);
   update();
 }
+
+// --- Kauf nachtragen: Vorschlag für Kurs und Wechselkurs, Einstand berechnen ---
+const pb = document.getElementById("past-form");
+if (pb) {
+  const d = pb.dataset;
+  const $ = (id) => document.getElementById(id);
+  const feeRule = (gross) => {
+    const f = num(d.feeFixed), p = num(d.feePct), m = num(d.feeMin);
+    if (!f && !p && !m) return 0;
+    return Math.round(Math.max(m, f + gross * p / 100) * 100) / 100;
+  };
+  // Felder, die der Benutzer selbst geändert hat, werden nicht überschrieben
+  const touched = new Set(["pb-price", "pb-fx"].filter((id) => $(id).value));
+  ["pb-price", "pb-fx"].forEach((id) => $(id).addEventListener("input", () => touched.add(id)));
+
+  function update() {
+    const q = num($("pb-qty").value), p = num($("pb-price").value), fx = num($("pb-fx").value);
+    const g = q > 0 && p > 0 && fx > 0 ? Math.round(q * p * fx * 100) / 100 : NaN;
+    const feeInput = $("pb-fee").value.trim();
+    const f = isNaN(g) ? NaN : feeInput ? num(feeInput) : feeRule(g);
+    const total = g + f;
+    $("pb-gross").textContent = isNaN(g) ? "–" : `${d.currency} ${fmt(g)}`;
+    $("pb-feeout").textContent = isNaN(f) ? "–" : `${d.currency} ${fmt(f)}${feeInput ? "" : " (Depot-Regel)"}`;
+    $("pb-total").textContent = isNaN(total) ? "–" : `${d.currency} ${fmt(total)}`;
+    const cash = pb.querySelector("input[name=funding]:checked").value === "cash";
+    $("pb-warn").textContent = cash && total > num(d.cash) + 0.005 ? "Das Bargeld reicht nicht – wähle «Als Einzahlung verbuchen»." : "";
+    $("pb-warn").classList.toggle("warn", !!$("pb-warn").textContent);
+  }
+
+  let seq = 0;
+  async function suggest() {
+    const day = $("pb-day").value;
+    if (!day) return;
+    const my = ++seq;
+    $("pb-suggest").textContent = "Suche Kurs vom " + fmtDate(day) + " …";
+    try {
+      const r = await fetch(`${d.api}&tag=${day}`, { credentials: "same-origin" });
+      const s = await r.json();
+      if (my !== seq) return;
+      const parts = [];
+      if (s.price) {
+        if (!touched.has("pb-price")) $("pb-price").value = s.price >= 1 ? Math.round(s.price * 1e4) / 1e4 : Number(s.price.toPrecision(6));
+        parts.push(`Schlusskurs ${s.price_day !== day ? "am " + fmtDate(s.price_day) + " (letzter Handelstag)" : "an diesem Tag"}: ${fmtPrice(s.price)}`);
+      } else {
+        parts.push("Für dieses Datum ist kein Kurs bekannt – bitte selbst eintragen.");
+      }
+      if (d.foreign === "1") {
+        if (s.fx) {
+          if (!touched.has("pb-fx")) $("pb-fx").value = Number(s.fx.toPrecision(6));
+          parts.push(s.fx_historic ? `Wechselkurs damals: ${s.fx.toFixed(4)}` : `Historischer Wechselkurs nicht verfügbar – aktueller Kurs ${s.fx.toFixed(4)} eingesetzt`);
+        } else parts.push("Wechselkurs bitte selbst eintragen.");
+      }
+      $("pb-suggest").textContent = parts.join(" · ") + ". Werte aus deiner Abrechnung haben Vorrang.";
+    } catch (e) {
+      if (my === seq) $("pb-suggest").textContent = "Kein Vorschlag verfügbar – bitte Werte selbst eintragen.";
+    }
+    update();
+  }
+  $("pb-day").addEventListener("change", suggest);
+  pb.addEventListener("input", update);
+  pb.addEventListener("change", update);
+  if ($("pb-day").value && !$("pb-price").value) suggest();
+  update();
+}

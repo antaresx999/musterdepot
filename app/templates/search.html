@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Titel suchen · {{ site_name }}{% endblock %}
 {% block content %}
-<div class="page-head"><h1>Titel suchen</h1></div>
+<div class="page-head"><h1>{{ 'Kauf nachtragen: Titel wählen' if nachtrag else 'Titel suchen' }}</h1></div>
 <form class="searchbar" method="get" action="/suche">
   <input type="search" name="q" value="{{ q }}" placeholder="z. B. Nestlé, AAPL, IE00B4L5Y983, Bitcoin…" autofocus>
   {% if depot %}<input type="hidden" name="depot" value="{{ depot }}">{% endif %}
+  {% if nachtrag %}<input type="hidden" name="nachtrag" value="1">{% endif %}
   <button class="btn primary">Suchen</button>
 </form>
 <p class="hint">Aktien, ETFs und Fonds kommen von Yahoo Finance (Schweizer Titel enden auf <code>.SW</code>, deutsche auf <code>.DE</code>), Kryptowährungen von CoinGecko.</p>
@@ -20,7 +21,7 @@
     <td><a href="/titel/{{ i.id }}{{ '?depot=%d'|format(depot) if depot }}"><b>{{ i.name }}</b></a><div class="sub">{{ i.ticker }}{% if i.exchange %} · {{ i.exchange }}{% endif %}</div></td>
     <td>{{ KIND_LABELS[i.kind] }}</td>
     <td class="num">{{ i.price|price(i.currency) }}</td>
-    <td class="row-actions">{% if depot %}<a class="btn sm buy" href="/depot/{{ depot }}/handel/{{ i.id }}">Kaufen</a>{% else %}<a class="btn sm" href="/titel/{{ i.id }}">Öffnen</a>{% endif %}</td>
+    <td class="row-actions">{% if nachtrag %}<a class="btn sm" href="/depot/{{ depot }}/nachtragen/{{ i.id }}">Nachtragen</a>{% elif depot %}<a class="btn sm buy" href="/depot/{{ depot }}/handel/{{ i.id }}">Kaufen</a>{% else %}<a class="btn sm" href="/titel/{{ i.id }}">Öffnen</a>{% endif %}</td>
   </tr>
   {% endfor %}
   </tbody>
@@ -40,7 +41,8 @@
         <input type="hidden" name="csrf" value="{{ csrf }}">
         {% for k in ['provider', 'symbol', 'ticker', 'name', 'kind', 'exchange'] %}<input type="hidden" name="{{ k }}" value="{{ r[k] }}">{% endfor %}
         <input type="hidden" name="depot" value="{{ depot }}">
-        <button class="btn sm">Öffnen</button>
+        <input type="hidden" name="nachtrag" value="{{ nachtrag }}">
+        <button class="btn sm">{{ 'Nachtragen' if nachtrag else 'Öffnen' }}</button>
       </form>
     </td>
   </tr>

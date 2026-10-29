@@ -361,6 +361,62 @@ def order_cancel(request: Request, pid: int, oid: int, csrf: str = Form("")):
     return back("/depot/{}".format(pid))
 
 
+@router.get("/depot/{pid}/nachtragen/{iid}")
+def past_buy_form(request: Request, pid: int, iid: int):
+    user = require_user(request)
+    with db.get() as conn:
+        pf = own_portfolio(conn, user, pid)
+        inst = _instrument(conn, iid)
+    return render(request, "past_buy.html", {"pf": pf, "inst": inst, "today": date.today().isoformat(),
+                                             "form": request.session.pop("past_buy_form", {})})
+
+
+@router.post("/depot/{pid}/nachtragen/{iid}")
+def past_buy_submit(request: Request, pid: int, iid: int, day: str = Form(""), quantity: str = Form(""),
+                    price: str = Form(""), fx: str = Form(""), fee: str = Form(""), funding: str = Form("deposit"),
+                    note: str = Form(""), csrf: str = Form("")):
+    user = require_user(request)
+    require_csrf(request, csrf)
+    with db.get() as conn:
+        pf = own_portfolio(conn, user, pid)
+        inst = _instrument(conn, iid)
+    try:
+        rate = 1.0 if inst["currency"] == pf["currency"] else parse_num(fx)
+        trading.book_past_buy(pid, iid, day.strip(), parse_num(quantity), parse_num(price), rate,
+                              parse_num(fee), funding, note.strip()[:200])
+    except trading.TradeError as e:
+        flash(request, str(e), "error")
+        request.session["past_buy_form"] = {"day": day, "quantity": quantity, "price": price, "fx": fx,
+                                            "fee": fee, "funding": funding, "note": note[:200]}
+        return back("/depot/{}/nachtragen/{}".format(pid, iid))
+    with db.get() as conn:
+        trading.snapshot(conn, db.one(conn, "SELECT * FROM portfolios WHERE id=?", (pid,)))
+    flash(request, "Kauf von {} {} vom {} nachgetragen.".format(_q(parse_num(quantity)), inst["name"],
+                                                               datetime.strptime(day.strip(), "%Y-%m-%d")
+                                                               .strftime("%d.%m.%Y")))
+    return back("/depot/{}".format(pid))
+
+
+@router.get("/api/titel/{iid}/kurs")
+def api_price_on(request: Request, iid: int, tag: str = "", depot: int = 0):
+    """Vorschlag für Kurs und Wechselkurs an einem Tag (für nachgetragene Käufe)."""
+    user = current_user(request)
+    if not user:
+        return JSONResponse({"error": "Nicht angemeldet"}, status_code=401)
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", tag) or tag > date.today().isoformat():
+        return JSONResponse({"error": "Ungültiges Datum"}, status_code=400)
+    with db.get() as conn:
+        pf = own_portfolio(conn, user, depot)
+        inst = _instrument(conn, iid)
+    price, price_day = quotes.price_on(iid, tag)
+    fx, fx_hist = None, False
+    try:
+        fx, fx_hist = quotes.fx_on(inst["currency"], pf["currency"], tag)
+    except quotes.QuoteError:
+        pass
+    return {"price": price, "price_day": price_day, "fx": fx, "fx_historic": fx_hist}
+
+
 @router.get("/depot/{pid}/dividende/{iid}")
 def dividend_form(request: Request, pid: int, iid: int):
     user = require_user(request)
@@ -402,7 +458,7 @@ def dividend_submit(request: Request, pid: int, iid: int, per_share: str = Form(
 # --------------------------------------------------------------------------- #
 
 @router.get("/suche")
-def search(request: Request, q: str = "", depot: int = 0):
+def search(request: Request, q: str = "", depot: int = 0, nachtrag: int = 0):
     require_user(request)
     q = q.strip()[:80]
     results, errors, known = [], [], []
@@ -415,13 +471,13 @@ def search(request: Request, q: str = "", depot: int = 0):
         seen = {(k["provider"], k["symbol"]) for k in known}
         results = [r for r in results if (r["provider"], r["symbol"]) not in seen]
     return render(request, "search.html", {"q": q, "results": results, "errors": errors, "known": known,
-                                           "depot": depot})
+                                           "depot": depot, "nachtrag": 1 if nachtrag and depot else 0})
 
 
 @router.post("/titel/aufnehmen")
 def instrument_add(request: Request, provider: str = Form(""), symbol: str = Form(""), ticker: str = Form(""),
                    name: str = Form(""), kind: str = Form("stock"), exchange: str = Form(""), depot: int = Form(0),
-                   csrf: str = Form("")):
+                   nachtrag: int = Form(0), csrf: str = Form("")):
     require_user(request)
     require_csrf(request, csrf)
     if provider not in ("yahoo", "coingecko") or not symbol:
@@ -433,6 +489,8 @@ def instrument_add(request: Request, provider: str = Form(""), symbol: str = For
     except quotes.QuoteError as e:
         flash(request, "Titel konnte nicht aufgenommen werden: {}".format(e), "error")
         return back("/suche?q={}".format(symbol))
+    if depot and nachtrag:
+        return back("/depot/{}/nachtragen/{}".format(depot, inst["id"]))
     return back("/titel/{}{}".format(inst["id"], "?depot={}".format(depot) if depot else ""))
 
 

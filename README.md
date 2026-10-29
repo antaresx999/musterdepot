@@ -16,6 +16,8 @@ zu echten Kursen.
 - **Aufträge**: Bestens/Billigst (sofort), **Limit** und **Stop** (Stop-Loss / Stop-Buy) mit optionalem Gültigkeitsdatum
 - **Gebühren pro Depot**: fix + Prozent vom Kurswert, mit Mindestgebühr
 - **Dividenden** von Hand gutschreiben (pro Stück oder gesamt, mit Quellensteuer)
+- **Kauf nachtragen**: frühere oder reale Käufe mit Datum, Kurs, Wechselkurs und Gebühr erfassen
+  (Vorschlag mit dem damaligen Schlusskurs; wahlweise als Einzahlung oder vom Bargeld)
 - **Ein- und Auszahlungen**, die nicht als Gewinn zählen
 - **Auswertung**: Depotwert, Gewinn/Verlust (offen und realisiert), Tagesveränderung, Aufteilung nach Anlageart
 - **Grafiken**: Depotwert über die Zeit und Kursverlauf pro Titel (bis 5 Jahre)

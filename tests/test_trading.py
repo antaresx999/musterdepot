@@ -186,3 +186,58 @@ def test_day_change_counts_from_purchase(admin):
         v = trading.valuation(conn, pf)
     assert v["day_change"] == pytest.approx(-100)
     assert v["gain"] == pytest.approx(-100)
+
+
+def past_buy(c, pid, iid, **kw):
+    data = {"day": "2024-03-15", "quantity": "10", "price": "80", "fx": "", "fee": "", "funding": "deposit",
+            "note": "", "csrf": c.csrf}
+    data.update(kw)
+    return c.post("/depot/{}/nachtragen/{}".format(pid, iid), data=data)
+
+
+def test_past_buy_as_deposit(admin):
+    pid = new_depot(admin, "Nachtrag", "1000", fees=("0", "1", "5"))
+    iid = new_manual(admin, "PAST", "100")
+    r = past_buy(admin, pid, iid)                     # 800 + 1 % (8, mind. 5) = 808
+    assert "nachgetragen" in r.text
+    pf = portfolio(pid)
+    assert pf["cash"] == pytest.approx(1000)          # Bargeld unverändert
+    h = holding(pid, iid)
+    assert h["quantity"] == pytest.approx(10) and h["cost"] == pytest.approx(808)
+    with db.get() as conn:
+        txs = db.all_(conn, "SELECT kind, amount, created_at FROM transactions WHERE portfolio_id=? "
+                            "AND created_at LIKE '2024-03-15%' ORDER BY id", (pid,))
+        v = trading.valuation(conn, pf)
+        snap = db.one(conn, "SELECT * FROM snapshots WHERE portfolio_id=?", (pid,))
+    assert [t["kind"] for t in txs] == ["deposit", "buy"] and txs[0]["amount"] == pytest.approx(808)
+    assert v["invested"] == pytest.approx(1808)
+    assert v["gain"] == pytest.approx(1000 - 808)     # Wert 1000 + 1000 Bargeld - 1808 eingezahlt
+    assert v["day_change"] == pytest.approx(0)        # Tageswert wurde nachgeführt
+    assert snap["value"] == pytest.approx(2000) and snap["invested"] == pytest.approx(1808)
+
+
+def test_past_buy_from_cash_and_validation(admin):
+    pid = new_depot(admin, "Nachtrag Cash", "1000")
+    iid = new_manual(admin, "PAST2", "50", ccy="USD")
+    r = past_buy(admin, pid, iid, funding="cash", fx="0.9", fee="0")  # 10 * 80 * 0.9 = 720
+    assert "nachgetragen" in r.text
+    assert portfolio(pid)["cash"] == pytest.approx(280)
+    r = past_buy(admin, pid, iid, funding="cash", fx="0.9", fee="0")
+    assert "Zu wenig Bargeld" in r.text
+    assert 'value="2024-03-15"' in r.text               # Formular behält die Eingaben
+    r = past_buy(admin, pid, iid, day="2999-01-01", fx="0.9")
+    assert "Zukunft" in r.text
+    r = past_buy(admin, pid, iid, fx="")
+    assert "Wechselkurs" in r.text
+    assert portfolio(pid)["cash"] == pytest.approx(280)
+
+
+def test_price_suggestion_api(admin):
+    pid = new_depot(admin, "API", "1000")
+    iid = new_manual(admin, "SUGG", "42")
+    with db.get() as conn:
+        conn.execute("INSERT OR REPLACE INTO price_history VALUES (?, '2024-05-10', 39.5)", (iid,))
+    s = admin.get("/api/titel/{}/kurs?tag=2024-05-12&depot={}".format(iid, pid)).json()
+    assert s["price"] == 39.5 and s["price_day"] == "2024-05-10" and s["fx"] == 1.0
+    assert admin.get("/depot/{}/nachtragen/{}".format(pid, iid)).status_code == 200
+    assert "Nachtragen" in admin.get("/suche?q=SUGG&depot={}&nachtrag=1".format(pid)).text

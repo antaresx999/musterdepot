@@ -44,6 +44,7 @@
     <td class="row-actions">
       <a class="btn sm buy" href="/depot/{{ p.id }}/handel/{{ inst.id }}?side=buy">Kaufen</a>
       {% if p.quantity %}<a class="btn sm sell" href="/depot/{{ p.id }}/handel/{{ inst.id }}?side=sell">Verkaufen</a>{% endif %}
+      <a class="btn sm ghost" href="/depot/{{ p.id }}/nachtragen/{{ inst.id }}" title="Früheren Kauf erfassen">Nachtragen</a>
     </td>
   </tr>
   {% endfor %}

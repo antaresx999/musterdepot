@@ -7,7 +7,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from . import config, db
 
@@ -115,9 +115,14 @@ def search(query):
 # Yahoo
 # --------------------------------------------------------------------------- #
 
-def _yahoo_chart(symbol, rng, interval="1d"):
-    data = _get_json(YAHOO + "/v8/finance/chart/" + urllib.parse.quote(symbol),
-                     {"range": rng, "interval": interval}, service="Yahoo Finance")
+def _yahoo_chart(symbol, rng=None, interval="1d", period=None):
+    """Kursdaten für einen Zeitraum: rng wie '5d'/'5y' oder period=(start_epoch, ende_epoch)."""
+    params = {"interval": interval}
+    if period:
+        params.update(period1=int(period[0]), period2=int(period[1]))
+    else:
+        params["range"] = rng
+    data = _get_json(YAHOO + "/v8/finance/chart/" + urllib.parse.quote(symbol), params, service="Yahoo Finance")
     chart = data.get("chart") or {}
     if chart.get("error") or not chart.get("result"):
         err = (chart.get("error") or {}).get("description") or "keine Daten"
@@ -372,3 +377,53 @@ def cached_fx(conn, src, dst):
         return row[0]
     row = conn.execute("SELECT rate FROM fx_rates WHERE pair=?", (dst + src,)).fetchone()
     return 1 / row[0] if row and row[0] else None
+
+
+# --------------------------------------------------------------------------- #
+# Kurse an einem bestimmten Tag (für nachgetragene Käufe)
+# --------------------------------------------------------------------------- #
+
+def _day_window(day, days_before=10):
+    d = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    return d.timestamp() - days_before * 86400, d.timestamp() + 2 * 86400
+
+
+def price_on(instrument_id, day):
+    """Schlusskurs am Tag (oder letzter Handelstag davor). Gibt (kurs, tag) oder (None, None) zurück."""
+    with db.get() as conn:
+        inst = db.one(conn, "SELECT * FROM instruments WHERE id=?", (instrument_id,))
+    if not inst:
+        return None, None
+    if inst["provider"] == "yahoo":
+        try:  # gezielt den Zeitraum abfragen – funktioniert auch weiter als 5 Jahre zurück
+            rows = [r for r in parse_yahoo_history(_yahoo_chart(inst["symbol"], period=_day_window(day)))
+                    if r[0] <= day]
+            if rows:
+                return rows[-1][1], rows[-1][0]
+        except QuoteError:
+            pass
+    else:
+        load_history(instrument_id)
+    with db.get() as conn:
+        row = conn.execute("SELECT close, day FROM price_history WHERE instrument_id=? AND day<=? AND day>=? "
+                           "ORDER BY day DESC LIMIT 1",
+                           (instrument_id, day, _shift(day, -10))).fetchone()
+    return (row[0], row[1]) if row else (None, None)
+
+
+def _shift(day, days):
+    return (datetime.strptime(day, "%Y-%m-%d") + timedelta(days=days)).strftime("%Y-%m-%d")
+
+
+def fx_on(src, dst, day):
+    """Wechselkurs am Tag. Gibt (kurs, historisch?) zurück; ohne historische Daten den aktuellen Kurs."""
+    if src == dst:
+        return 1.0, True
+    try:
+        rows = [r for r in parse_yahoo_history(_yahoo_chart("{}{}=X".format(src, dst), period=_day_window(day)))
+                if r[0] <= day]
+        if rows:
+            return rows[-1][1], True
+    except QuoteError:
+        pass
+    return fx_rate(src, dst), False

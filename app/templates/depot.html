@@ -10,6 +10,7 @@
   </div>
   <div class="head-actions">
     <a class="btn primary" href="/suche?depot={{ pf.id }}">+ Titel kaufen</a>
+    <a class="btn" href="/suche?depot={{ pf.id }}&amp;nachtrag=1" title="Einen früheren oder realen Kauf erfassen">Kauf nachtragen</a>
     <button class="btn" data-open="dlg-cash">Ein-/Auszahlung</button>
     <form method="post" action="/depot/{{ pf.id }}/aktualisieren" class="inline">
       <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn" title="Kurse jetzt abfragen">↻ Kurse</button>
