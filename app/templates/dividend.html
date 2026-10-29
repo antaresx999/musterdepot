@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Dividende · {{ inst.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Depots</a> › <a href="/depot/{{ pf.id }}">{{ pf.name }}</a> ›</div>
+    <h1>Dividende buchen: {{ inst.name }}</h1>
+  </div>
+</div>
+<form class="card narrow" method="post">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <p>Im Depot: <b>{{ hold.quantity|qty if hold else 0 }} Stück</b>. Beträge in <b>{{ pf.currency }}</b>{% if inst.currency != pf.currency %} (Titelwährung {{ inst.currency }} – bitte selbst umrechnen){% endif %}.</p>
+  <div class="row">
+    {% if hold %}<label>Pro Stück<input name="per_share" inputmode="decimal" placeholder="z. B. 3.05"></label>{% endif %}
+    <label>{{ 'oder ' if hold }}Bruttobetrag gesamt<input name="gross" inputmode="decimal"></label>
+  </div>
+  <div class="row">
+    <label>Quellensteuer / Abzug<input name="tax" inputmode="decimal" value="0"></label>
+    <label>Datum<input type="date" name="day" value="{{ today }}" max="{{ today }}"></label>
+  </div>
+  <label>Notiz <small class="muted">(optional)</small><input name="note" maxlength="200"></label>
+  <p class="hint">Gutgeschrieben wird Brutto minus Abzug. Beispiel Schweiz: 35 % Verrechnungssteuer.</p>
+  <div class="actions"><a class="btn" href="/depot/{{ pf.id }}">Abbrechen</a><button class="btn primary">Gutschreiben</button></div>
+</form>
+{% endblock %}

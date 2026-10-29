@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Buchungen · {{ pf.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Depots</a> › <a href="/depot/{{ pf.id }}">{{ pf.name }}</a> ›</div>
+    <h1>Buchungen</h1>
+  </div>
+  <a class="btn" href="/depot/{{ pf.id }}/transaktionen?format=csv">CSV herunterladen</a>
+</div>
+{% include "_transactions.html" %}
+
+<h2 class="section-title">Alle Aufträge</h2>
+{% if orders %}
+<div class="card table-card">
+<table class="table">
+  <thead><tr><th>Erteilt</th><th>Titel</th><th>Art</th><th class="num">Stück</th><th class="num">Limit/Stop</th><th>Status</th><th class="hide-sm">Erledigt</th></tr></thead>
+  <tbody>
+  {% for o in orders %}
+  <tr>
+    <td class="sub">{{ o.created_at|dt }}</td>
+    <td><a href="/titel/{{ o.instrument_id }}">{{ o.name }}</a></td>
+    <td><span class="side-{{ o.side }}">{{ SIDES[o.side] }}</span> · {{ ORDER_TYPES[o.order_type] }}</td>
+    <td class="num">{{ o.quantity|qty }}</td>
+    <td class="num">{{ (o.limit_price or o.stop_price)|price(o.currency) if (o.limit_price or o.stop_price) else '–' }}</td>
+    <td><span class="status s-{{ o.status }}">{{ STATUS_LABELS[o.status] }}</span>{% if o.message %}<div class="sub">{{ o.message }}</div>{% endif %}</td>
+    <td class="sub hide-sm">{{ o.closed_at|dt }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}<p class="muted">Keine Aufträge.</p>{% endif %}
+{% endblock %}

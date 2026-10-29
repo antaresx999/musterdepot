@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Depots · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Meine Depots</h1>
+  <button class="btn primary" data-open="dlg-new">+ Neues Depot</button>
+</div>
+
+{% if portfolios %}
+<div class="cards">
+  {% for pf in portfolios %}
+  <a class="card depot-card" href="/depot/{{ pf.id }}">
+    <div class="depot-card-head"><h2>{{ pf.name }}</h2><span class="tag">{{ pf.currency }}</span></div>
+    <div class="big">{{ pf.v.value|money(pf.currency) }}</div>
+    <div class="kv">
+      <span>Gewinn/Verlust</span><b class="{{ pf.v.gain|signclass }}">{{ pf.v.gain|signed }} <small>({{ pf.v.gain_pct|pct }})</small></b>
+      <span>Heute</span><b class="{{ pf.v.day_change|signclass }}">{{ pf.v.day_change|signed }} <small>({{ pf.v.day_pct|pct }})</small></b>
+      <span>Bargeld</span><b>{{ pf.v.cash|money }}</b>
+      <span>Positionen</span><b>{{ pf.v.positions|length }}</b>
+    </div>
+    {% if not pf.v.complete %}<p class="hint warn">Einige Kurse oder Wechselkurse fehlen noch.</p>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty">
+  <h2>Noch kein Depot</h2>
+  <p>Leg ein Musterdepot mit Startkapital an und beginne zu handeln – mit Aktien, ETFs, Fonds und Kryptowährungen.</p>
+  <button class="btn primary" data-open="dlg-new">Erstes Depot anlegen</button>
+</div>
+{% endif %}
+
+<h2 class="section-title">Beobachtungsliste</h2>
+{% if watchlist %}
+<div class="card table-card">
+<table class="table">
+  <thead><tr><th>Titel</th><th>Art</th><th class="num">Kurs</th><th class="num">Heute</th><th class="hide-sm">Stand</th></tr></thead>
+  <tbody>
+  {% for i in watchlist %}
+  {% set chg = ((i.price / i.prev_close - 1) * 100) if i.price and i.prev_close else None %}
+  <tr>
+    <td><a href="/titel/{{ i.id }}"><b>{{ i.name }}</b></a><div class="sub">{{ i.ticker }}</div></td>
+    <td>{{ KIND_LABELS[i.kind] }}</td>
+    <td class="num">{{ i.price|price(i.currency) }}</td>
+    <td class="num {{ chg|signclass }}">{{ chg|pct }}</td>
+    <td class="hide-sm sub">{{ i.price_time|dt }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">Leer. Auf der Seite eines Titels kannst du ihn mit ☆ beobachten.</p>
+{% endif %}
+
+<dialog id="dlg-new" class="dialog">
+  <form method="post" action="/depot/neu">
+    <h2>Neues Depot</h2>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Name<input name="name" required maxlength="80" placeholder="z. B. Langfrist-Depot"></label>
+    <div class="row">
+      <label>Währung
+        <select name="currency">{% for c in CURRENCIES %}<option>{{ c }}</option>{% endfor %}</select>
+      </label>
+      <label>Startkapital<input name="start_cash" value="100000" inputmode="decimal" required></label>
+    </div>
+    <fieldset>
+      <legend>Gebühren pro Auftrag</legend>
+      <div class="row3">
+        <label>Fix<input name="fee_fixed" value="0" inputmode="decimal"></label>
+        <label>Prozent<input name="fee_pct" value="0" inputmode="decimal"></label>
+        <label>Minimum<input name="fee_min" value="0" inputmode="decimal"></label>
+      </div>
+      <p class="hint">Gebühr = Fix + Prozent vom Kurswert, mindestens das Minimum. Alles 0 = gebührenfrei.</p>
+    </fieldset>
+    <label>Beschreibung <small class="muted">(optional)</small><textarea name="description" rows="2" maxlength="500"></textarea></label>
+    <div class="actions"><button type="button" class="btn" data-close>Abbrechen</button><button class="btn primary">Anlegen</button></div>
+  </form>
+</dialog>
+{% endblock %}

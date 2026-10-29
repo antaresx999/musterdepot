@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Handel {{ inst.name }} · {{ site_name }}{% endblock %}
+{% block content %}
+{% set c = pf.currency %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Depots</a> › <a href="/depot/{{ pf.id }}">{{ pf.name }}</a> ›</div>
+    <h1>Auftrag: {{ inst.name }}</h1>
+    <p class="muted">{{ inst.ticker }} · {{ KIND_LABELS[inst.kind] }}{% if inst.exchange %} · {{ inst.exchange }}{% endif %} · <a href="/titel/{{ inst.id }}?depot={{ pf.id }}">Kursverlauf</a></p>
+  </div>
+</div>
+{% if error %}<div class="alert">Hinweis zur Kursabfrage: {{ error }}</div>{% endif %}
+
+<div class="grid-2 trade">
+  <form class="card" method="post" id="trade-form"
+        data-price="{{ inst.price or 0 }}" data-fx="{{ fx or 0 }}" data-cash="{{ pf.cash }}" data-free="{{ free_qty }}"
+        data-fee-fixed="{{ pf.fee_fixed }}" data-fee-pct="{{ pf.fee_pct }}" data-fee-min="{{ pf.fee_min }}" data-currency="{{ c }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="seg-radio big-seg">
+      <label class="buy"><input type="radio" name="side" value="buy" {{ 'checked' if side == 'buy' }}> Kaufen</label>
+      <label class="sell"><input type="radio" name="side" value="sell" {{ 'checked' if side == 'sell' }} {{ 'disabled' if free_qty <= 0 }}> Verkaufen</label>
+    </div>
+    <div class="row">
+      <label>Auftragsart
+        <select name="order_type" id="order-type">
+          <option value="market">Bestens / Billigst (sofort)</option>
+          <option value="limit">Limit</option>
+          <option value="stop">Stop (Stop-Loss / Stop-Buy)</option>
+        </select>
+      </label>
+      <label>Stück
+        <div class="input-btn"><input name="quantity" id="qty" inputmode="decimal" required autofocus><button type="button" class="btn sm" id="qty-max">Max</button></div>
+      </label>
+    </div>
+    <label class="for-amount">Oder Betrag in {{ c }} <small class="muted">(rechnet die Stückzahl aus)</small>
+      <input id="amount" inputmode="decimal" placeholder="z. B. 5000">
+    </label>
+    <div class="row only-limit" hidden>
+      <label>Limitkurs ({{ inst.currency }})<input name="limit_price" inputmode="decimal"></label>
+    </div>
+    <div class="row only-stop" hidden>
+      <label>Stopkurs ({{ inst.currency }})<input name="stop_price" inputmode="decimal"></label>
+    </div>
+    <label class="only-pending" hidden>Gültig bis <small class="muted">(leer = bis auf Widerruf)</small><input type="date" name="valid_until"></label>
+    <p class="hint only-limit" hidden>Kauf-Limit: wird ausgeführt, sobald der Kurs <b>auf oder unter</b> das Limit fällt. Verkauf-Limit: sobald er <b>auf oder über</b> das Limit steigt.</p>
+    <p class="hint only-stop" hidden>Stop-Loss (Verkauf): wird ausgeführt, sobald der Kurs <b>auf oder unter</b> den Stop fällt. Stop-Buy (Kauf): sobald er <b>auf oder über</b> den Stop steigt.</p>
+
+    <div class="estimate">
+      <div><span>Kurswert</span><b id="est-gross">–</b></div>
+      <div><span>Gebühr</span><b id="est-fee">–</b></div>
+      <div class="total"><span id="est-label">Belastung</span><b id="est-total">–</b></div>
+      <p class="hint" id="est-warn"></p>
+    </div>
+    <button class="btn primary wide" id="submit">Auftrag erteilen</button>
+  </form>
+
+  <div class="card">
+    <h2>Aktueller Kurs</h2>
+    {% set chg = ((inst.price / inst.prev_close - 1) * 100) if inst.price and inst.prev_close else None %}
+    <div class="big">{{ inst.price|price(inst.currency) }} <small class="{{ chg|signclass }}">{{ chg|pct }}</small></div>
+    <p class="sub">Stand {{ inst.price_time|dt }} · Quelle {{ PROVIDER_LABELS[inst.provider] }}</p>
+    <div class="kv">
+      {% if inst.currency != c %}<span>Wechselkurs</span><b>{{ '1 %s = %.4f %s'|format(inst.currency, fx, c) if fx else 'nicht verfügbar' }}</b>{% endif %}
+      <span>Verfügbares Bargeld</span><b>{{ pf.cash|money(c) }}</b>
+      <span>Im Depot</span><b>{{ hold.quantity|qty if hold else 0 }} Stk.</b>
+      {% if hold and free_qty < hold.quantity %}<span>Davon frei</span><b>{{ free_qty|qty }} Stk.</b>{% endif %}
+      {% if hold %}<span>Einstand</span><b>{{ (hold.cost / hold.quantity)|price(c) }} / Stk.</b>{% endif %}
+      <span>Gebühren</span><b>{% if pf.fee_fixed or pf.fee_pct or pf.fee_min %}{{ pf.fee_fixed|money(c) }} + {{ pf.fee_pct }} %{% if pf.fee_min %}, min. {{ pf.fee_min|money(c) }}{% endif %}{% else %}keine{% endif %}</b>
+    </div>
+    <p class="hint">Simulation: Ausgeführt wird zum zuletzt abgefragten Kurs. Börsenöffnungszeiten werden nicht berücksichtigt.</p>
+  </div>
+</div>
+{% endblock %}

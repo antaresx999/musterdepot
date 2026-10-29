@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r requirements.txt pytest httpx
+      - run: python -m pytest -q
+
+  install:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installieren (wie auf einem Server)
+        run: sudo ./deploy/install.sh
+      - name: Dienst prüfen
+        run: |
+          systemctl is-active musterdepot
+          curl -fsS http://127.0.0.1:8080/healthz
+          curl -fsS http://127.0.0.1:8080/login | grep -q "Anmelden"
+          sudo test -f /var/lib/musterdepot/initial-admin-password.txt
+      - name: Update-Lauf (zweite Installation)
+        run: |
+          sudo ./deploy/install.sh
+          curl -fsS http://127.0.0.1:8080/healthz
+      - name: Protokoll
+        if: always()
+        run: sudo journalctl -u musterdepot -n 50 --no-pager

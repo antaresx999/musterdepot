@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Einstellungen · {{ pf.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Depots</a> › <a href="/depot/{{ pf.id }}">{{ pf.name }}</a> ›</div>
+    <h1>Einstellungen</h1>
+  </div>
+</div>
+<form class="card narrow" method="post">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Name<input name="name" value="{{ pf.name }}" required maxlength="80"></label>
+  <label>Beschreibung<textarea name="description" rows="2" maxlength="500">{{ pf.description }}</textarea></label>
+  <p>Währung: <b>{{ pf.currency }}</b> <small class="muted">(nach dem Anlegen nicht mehr änderbar)</small></p>
+  <fieldset>
+    <legend>Gebühren pro Auftrag ({{ pf.currency }})</legend>
+    <div class="row3">
+      <label>Fix<input name="fee_fixed" value="{{ pf.fee_fixed }}" inputmode="decimal"></label>
+      <label>Prozent<input name="fee_pct" value="{{ pf.fee_pct }}" inputmode="decimal"></label>
+      <label>Minimum<input name="fee_min" value="{{ pf.fee_min }}" inputmode="decimal"></label>
+    </div>
+    <p class="hint">Beispiel: Fix 0, Prozent 0.5, Minimum 9 → bei 1’000 Kurswert 9.–, bei 10’000 Kurswert 50.–.</p>
+  </fieldset>
+  <div class="actions"><a class="btn" href="/depot/{{ pf.id }}">Abbrechen</a><button class="btn primary">Speichern</button></div>
+</form>
+
+<form class="card narrow danger-zone" method="post" action="/depot/{{ pf.id }}/loeschen">
+  <h2>Depot löschen</h2>
+  <p>Löscht das Depot mit allen Positionen, Aufträgen und Buchungen. Das lässt sich nicht rückgängig machen.</p>
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Zur Bestätigung den Namen eintippen: <b>{{ pf.name }}</b><input name="confirm" autocomplete="off" required></label>
+  <button class="btn danger">Endgültig löschen</button>
+</form>
+{% endblock %}

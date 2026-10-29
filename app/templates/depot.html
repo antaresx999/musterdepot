@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ pf.name }} · {{ site_name }}{% endblock %}
+{% block content %}
+{% set c = pf.currency %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/">Depots</a> ›</div>
+    <h1>{{ pf.name }} <span class="tag">{{ c }}</span></h1>
+    {% if pf.description %}<p class="muted">{{ pf.description }}</p>{% endif %}
+  </div>
+  <div class="head-actions">
+    <a class="btn primary" href="/suche?depot={{ pf.id }}">+ Titel kaufen</a>
+    <button class="btn" data-open="dlg-cash">Ein-/Auszahlung</button>
+    <form method="post" action="/depot/{{ pf.id }}/aktualisieren" class="inline">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn" title="Kurse jetzt abfragen">↻ Kurse</button>
+    </form>
+    <a class="btn ghost" href="/depot/{{ pf.id }}/einstellungen" title="Einstellungen">⚙</a>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><span>Depotwert</span><b>{{ v.value|money(c) }}</b></div>
+  <div class="kpi"><span>Gewinn/Verlust gesamt</span><b class="{{ v.gain|signclass }}">{{ v.gain|signed }}</b><small class="{{ v.gain|signclass }}">{{ v.gain_pct|pct }}</small></div>
+  <div class="kpi"><span>Heute</span><b class="{{ v.day_change|signclass }}">{{ v.day_change|signed }}</b><small class="{{ v.day_change|signclass }}">{{ v.day_pct|pct }}</small></div>
+  <div class="kpi"><span>Bargeld</span><b>{{ v.cash|money }}</b><small>Wertschriften {{ v.securities|money }}</small></div>
+</div>
+{% if not v.complete %}<p class="hint warn">Für einige Positionen fehlt ein Kurs oder Wechselkurs – der Depotwert ist unvollständig.</p>{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-head">
+      <h2>Depotwert</h2>
+      <div class="seg" data-chart-range="chart-depot">
+        {% for r, l in [('1m','1M'),('6m','6M'),('1y','1J'),('max','Max')] %}<button type="button" data-range="{{ r }}" class="{{ 'on' if r == 'max' }}">{{ l }}</button>{% endfor %}
+      </div>
+    </div>
+    <div class="chart" id="chart-depot" data-src="/api/depot/{{ pf.id }}/verlauf" data-range="max" data-currency="{{ c }}" data-baseline="invested"></div>
+    <p class="hint">Der Wert wird einmal pro Kursabfrage gespeichert. Die gestrichelte Linie zeigt das eingezahlte Kapital.</p>
+  </div>
+  <div class="card">
+    <h2>Aufteilung</h2>
+    <div class="alloc-bar">
+      {% for k, a, pct in allocation %}<span class="a-{{ k }}" style="width: {{ '%.2f'|format(pct) }}%" title="{{ KIND_LABELS.get(k, 'Bargeld') }} {{ '%.1f'|format(pct) }} %"></span>{% endfor %}
+    </div>
+    <ul class="alloc-list">
+      {% for k, a, pct in allocation %}
+      <li><i class="a-{{ k }}"></i>{{ KIND_LABELS.get(k, 'Bargeld') }}<span>{{ a|money }}</span><b>{{ '%.1f'|format(pct) }} %</b></li>
+      {% endfor %}
+    </ul>
+    <div class="kv small">
+      <span>Eingezahlt (netto)</span><b>{{ v.invested|money }}</b>
+      <span>Kursgewinne offen</span><b class="{{ v.unrealized|signclass }}">{{ v.unrealized|signed }}</b>
+      <span>Realisiert</span><b class="{{ v.realized|signclass }}">{{ v.realized|signed }}</b>
+      <span>Dividenden (netto)</span><b>{{ v.dividends|money }}</b>
+      <span>Bezahlte Gebühren</span><b>{{ v.fees|money }}</b>
+    </div>
+  </div>
+</div>
+
+<h2 class="section-title">Positionen</h2>
+{% if v.positions %}
+<div class="card table-card">
+<table class="table">
+  <thead><tr>
+    <th>Titel</th><th class="num">Stück</th><th class="num hide-sm">Einstand</th><th class="num">Kurs</th>
+    <th class="num">Wert {{ c }}</th><th class="num">Heute</th><th class="num">G/V</th><th class="num hide-sm">Anteil</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for p in v.positions %}
+  <tr>
+    <td><a href="/titel/{{ p.id }}?depot={{ pf.id }}"><b>{{ p.name }}</b></a>
+      <div class="sub">{{ p.ticker }} · {{ KIND_LABELS[p.kind] }}{% if p.last_error %} · <span class="warn" title="{{ p.last_error }}">Kurs veraltet</span>{% endif %}</div></td>
+    <td class="num">{{ p.quantity|qty }}</td>
+    <td class="num hide-sm">{{ p.avg_price|price }}<div class="sub">{{ c }}/Stk.</div></td>
+    <td class="num">{{ p.price|price(p.currency) }}<div class="sub">{{ p.price_time|dt }}</div></td>
+    <td class="num"><b>{{ p.value|money }}</b></td>
+    <td class="num {{ p.day_pct|signclass }}">{{ p.day_pct|pct }}</td>
+    <td class="num {{ p.gain|signclass }}">{{ p.gain|signed }}<div class="sub {{ p.gain|signclass }}">{{ p.gain_pct|pct }}</div></td>
+    <td class="num hide-sm">{{ '%.1f %%'|format(p.weight) if p.weight is not none else '–' }}</td>
+    <td class="row-actions">
+      <a class="btn sm buy" href="/depot/{{ pf.id }}/handel/{{ p.id }}?side=buy">Kauf</a>
+      <a class="btn sm sell" href="/depot/{{ pf.id }}/handel/{{ p.id }}?side=sell">Verk.</a>
+      <a class="btn sm ghost" href="/depot/{{ pf.id }}/dividende/{{ p.id }}" title="Dividende buchen">Div.</a>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="card empty"><p>Noch keine Positionen. <a href="/suche?depot={{ pf.id }}">Titel suchen und kaufen</a></p></div>
+{% endif %}
+
+{% if orders %}
+<h2 class="section-title">Aufträge</h2>
+<div class="card table-card">
+<table class="table">
+  <thead><tr><th>Erteilt</th><th>Titel</th><th>Art</th><th class="num">Stück</th><th class="num">Limit/Stop</th><th class="num hide-sm">Kurs jetzt</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {% for o in orders %}
+  <tr class="{{ 'muted-row' if o.status != 'open' }}">
+    <td class="sub">{{ o.created_at|dt }}{% if o.valid_until %}<div>gültig bis {{ o.valid_until|dt(false) }}</div>{% endif %}</td>
+    <td><a href="/titel/{{ o.instrument_id }}">{{ o.name }}</a></td>
+    <td><span class="side-{{ o.side }}">{{ SIDES[o.side] }}</span> · {{ ORDER_TYPES[o.order_type] }}</td>
+    <td class="num">{{ o.quantity|qty }}</td>
+    <td class="num">{{ (o.limit_price or o.stop_price)|price(o.currency) if (o.limit_price or o.stop_price) else '–' }}</td>
+    <td class="num hide-sm">{{ o.price|price(o.currency) }}</td>
+    <td><span class="status s-{{ o.status }}">{{ STATUS_LABELS[o.status] }}</span>{% if o.message %}<div class="sub">{{ o.message }}</div>{% endif %}</td>
+    <td>{% if o.status == 'open' %}
+      <form method="post" action="/depot/{{ pf.id }}/auftrag/{{ o.id }}/loeschen" data-confirm="Auftrag löschen?">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm ghost">Löschen</button>
+      </form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="section-title-row">
+  <h2 class="section-title">Letzte Buchungen</h2>
+  <a href="/depot/{{ pf.id }}/transaktionen">Alle anzeigen ›</a>
+</div>
+{% include "_transactions.html" %}
+
+<dialog id="dlg-cash" class="dialog">
+  <form method="post" action="/depot/{{ pf.id }}/geld">
+    <h2>Ein- oder Auszahlung</h2>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="seg-radio">
+      <label><input type="radio" name="kind" value="deposit" checked> Einzahlung</label>
+      <label><input type="radio" name="kind" value="withdraw"> Auszahlung</label>
+    </div>
+    <label>Betrag ({{ c }})<input name="amount" inputmode="decimal" required></label>
+    <label>Notiz <small class="muted">(optional)</small><input name="note" maxlength="200"></label>
+    <p class="hint">Ein- und Auszahlungen zählen nicht als Gewinn oder Verlust.</p>
+    <div class="actions"><button type="button" class="btn" data-close>Abbrechen</button><button class="btn primary">Buchen</button></div>
+  </form>
+</dialog>
+{% endblock %}

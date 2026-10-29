@@ -1,0 +1,29 @@
+[Unit]
+Description=Musterdepot – simulierter Wertschriftenhandel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=musterdepot
+Group=musterdepot
+WorkingDirectory=/opt/musterdepot
+EnvironmentFile=/etc/musterdepot.env
+ExecStart=/opt/musterdepot/venv/bin/uvicorn app.main:app --host ${MUSTERDEPOT_HOST} --port ${MUSTERDEPOT_PORT} --proxy-headers --forwarded-allow-ips *
+Restart=on-failure
+RestartSec=3
+
+# Härtung
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/musterdepot
+
+[Install]
+WantedBy=multi-user.target

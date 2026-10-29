@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Kurse · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Titel und Kurse</h1>
+  <button class="btn primary" data-open="dlg-manual">+ Manueller Titel</button>
+</div>
+<p class="muted">Alle bekannten Titel. Kurse werden automatisch alle paar Minuten aktualisiert, sofern ein Titel in einem Depot liegt, einen offenen Auftrag hat oder beobachtet wird.</p>
+
+<div class="card table-card"><table class="table">
+  <thead><tr><th>Titel</th><th>Quelle</th><th class="num">Kurs</th><th class="hide-sm">Abgefragt</th><th class="num">In Depots</th><th></th></tr></thead>
+  <tbody>
+  {% for i in insts %}
+  <tr>
+    <td><a href="/titel/{{ i.id }}"><b>{{ i.name }}</b></a><div class="sub">{{ i.symbol }} · {{ KIND_LABELS[i.kind] }}</div>{% if i.last_error %}<div class="sub warn">{{ i.last_error }}</div>{% endif %}</td>
+    <td>{{ PROVIDER_LABELS[i.provider] }}</td>
+    <td class="num">{{ i.price|price(i.currency) }}</td>
+    <td class="hide-sm sub">{{ i.updated_at|dt }}</td>
+    <td class="num">{{ i.held }}</td>
+    <td class="row-actions">
+      <details class="menu">
+        <summary class="btn sm ghost">Aktionen</summary>
+        <div class="menu-panel">
+          {% if i.provider == 'manual' %}
+          <form method="post" action="/admin/titel/{{ i.id }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="price">
+            <label>Neuer Kurs ({{ i.currency }})<input name="price" inputmode="decimal" required></label>
+            <button class="btn sm">Kurs setzen</button>
+          </form>
+          {% else %}
+          <form method="post" action="/admin/titel/{{ i.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="refresh"><button class="btn sm">Kurs und Verlauf neu laden</button></form>
+          {% endif %}
+          {% if not i.used and not i.held %}
+          <form method="post" action="/admin/titel/{{ i.id }}" data-confirm="Titel löschen?"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="delete"><button class="btn sm danger">Löschen</button></form>
+          {% endif %}
+        </div>
+      </details>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="6" class="muted">Noch keine Titel. Über «Titel suchen» werden sie aufgenommen.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+
+<h2 class="section-title">Wechselkurse</h2>
+{% if fx %}
+<div class="card table-card"><table class="table">
+  <thead><tr><th>Paar</th><th class="num">Kurs</th><th>Abgefragt</th></tr></thead>
+  <tbody>{% for f in fx %}<tr><td>{{ f.pair[:3] }} → {{ f.pair[3:] }}</td><td class="num">{{ '%.5f'|format(f.rate) }}</td><td class="sub">{{ f.updated_at|dt }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<p class="muted">Noch keine Wechselkurse abgefragt.</p>{% endif %}
+
+<dialog id="dlg-manual" class="dialog">
+  <form method="post" action="/admin/titel/neu">
+    <h2>Manueller Titel</h2>
+    <p class="hint">Für Titel ohne Internet-Kurs (z. B. nicht kotierte Firmen, Übungen). Den Kurs setzt du hier von Hand – offene Limit-/Stop-Aufträge werden danach sofort geprüft.</p>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="row">
+      <label>Name<input name="name" required maxlength="100"></label>
+      <label>Kürzel<input name="ticker" required maxlength="20"></label>
+    </div>
+    <div class="row3">
+      <label>Art<select name="kind">{% for k, l in KIND_LABELS.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></label>
+      <label>Währung<input name="currency" value="CHF" maxlength="3" required></label>
+      <label>Kurs<input name="price" inputmode="decimal" required></label>
+    </div>
+    <div class="actions"><button type="button" class="btn" data-close>Abbrechen</button><button class="btn primary">Anlegen</button></div>
+  </form>
+</dialog>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Benutzer · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Benutzer</h1>
+  <button class="btn primary" data-open="dlg-user">+ Neuer Benutzer</button>
+</div>
+<div class="card table-card"><table class="table">
+  <thead><tr><th>Benutzer</th><th>Rolle</th><th class="num">Depots</th><th class="hide-sm">Letzte Anmeldung</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+  <tr class="{{ 'muted-row' if not u.active }}">
+    <td><b>{{ u.username }}</b>{% if u.display_name %}<div class="sub">{{ u.display_name }}</div>{% endif %}{% if not u.active %}<div class="sub warn">gesperrt</div>{% endif %}</td>
+    <td>{{ 'Administrator' if u.role == 'admin' else 'Benutzer' }}</td>
+    <td class="num">{{ u.depots }}</td>
+    <td class="hide-sm sub">{{ u.last_login|dt or 'nie' }}</td>
+    <td class="row-actions">
+      <details class="menu">
+        <summary class="btn sm ghost">Aktionen</summary>
+        <div class="menu-panel">
+          <form method="post" action="/admin/benutzer/{{ u.id }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="password">
+            <label>Neues Passwort<input type="password" name="password" minlength="8" autocomplete="new-password" required></label>
+            <button class="btn sm">Passwort setzen</button>
+          </form>
+          {% if u.id != user.id %}
+          <form method="post" action="/admin/benutzer/{{ u.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="toggle"><button class="btn sm">{{ 'Sperren' if u.active else 'Entsperren' }}</button></form>
+          <form method="post" action="/admin/benutzer/{{ u.id }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="role"><button class="btn sm">{{ 'Zum Benutzer machen' if u.role == 'admin' else 'Zum Administrator machen' }}</button></form>
+          <form method="post" action="/admin/benutzer/{{ u.id }}" data-confirm="«{{ u.username }}» mit allen Depots endgültig löschen?"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="delete"><button class="btn sm danger">Löschen</button></form>
+          {% endif %}
+        </div>
+      </details>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+
+<dialog id="dlg-user" class="dialog">
+  <form method="post" action="/admin/benutzer/neu">
+    <h2>Neuer Benutzer</h2>
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="row">
+      <label>Benutzername<input name="username" required pattern="[A-Za-z0-9._@\-]{2,40}" autocomplete="off"></label>
+      <label>Anzeigename<input name="display_name" maxlength="80"></label>
+    </div>
+    <div class="row">
+      <label>Passwort<input type="password" name="password" minlength="8" required autocomplete="new-password"></label>
+      <label>Rolle<select name="role"><option value="user">Benutzer</option><option value="admin">Administrator</option></select></label>
+    </div>
+    <p class="hint">Administratoren verwalten Benutzer und manuelle Kurse. Depots sieht jeder nur selbst.</p>
+    <div class="actions"><button type="button" class="btn" data-close>Abbrechen</button><button class="btn primary">Anlegen</button></div>
+  </form>
+</dialog>
+{% endblock %}

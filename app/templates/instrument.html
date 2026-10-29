@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ inst.name }} · {{ site_name }}{% endblock %}
+{% block content %}
+{% set chg = ((inst.price / inst.prev_close - 1) * 100) if inst.price and inst.prev_close else None %}
+<div class="page-head">
+  <div>
+    <div class="crumbs"><a href="/suche">Titel</a> ›</div>
+    <h1>{{ inst.name }}</h1>
+    <p class="muted">{{ inst.ticker }} · {{ KIND_LABELS[inst.kind] }}{% if inst.exchange %} · {{ inst.exchange }}{% endif %} · {{ PROVIDER_LABELS[inst.provider] }}</p>
+  </div>
+  <form method="post" action="/titel/{{ inst.id }}/beobachten">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn {{ 'on' if watched }}" title="Beobachtungsliste">{{ '★ Beobachtet' if watched else '☆ Beobachten' }}</button>
+  </form>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><span>Kurs</span><b>{{ inst.price|price(inst.currency) }}</b><small>{{ inst.price_time|dt }}</small></div>
+  <div class="kpi"><span>{{ '24 h' if inst.provider == 'coingecko' else 'Heute' }}</span><b class="{{ chg|signclass }}">{{ chg|pct }}</b><small>Vortag {{ inst.prev_close|price }}</small></div>
+</div>
+{% if inst.last_error %}<div class="alert">Letzte Kursabfrage fehlgeschlagen: {{ inst.last_error }}</div>{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <h2>Kursverlauf</h2>
+    <div class="seg" data-chart-range="chart-inst">
+      {% for r, l in [('1m','1M'),('3m','3M'),('6m','6M'),('1y','1J'),('3y','3J'),('5y','5J')] %}<button type="button" data-range="{{ r }}" class="{{ 'on' if r == '1y' }}">{{ l }}</button>{% endfor %}
+    </div>
+  </div>
+  <div class="chart" id="chart-inst" data-src="/api/titel/{{ inst.id }}/verlauf" data-range="1y" data-currency="{{ inst.currency }}"></div>
+  {% if inst.provider == 'coingecko' %}<p class="hint">CoinGecko liefert ohne Schlüssel höchstens ein Jahr Verlauf.</p>{% endif %}
+</div>
+
+<h2 class="section-title">Handeln</h2>
+{% if portfolios %}
+<div class="card table-card"><table class="table">
+  <thead><tr><th>Depot</th><th class="num">Bargeld</th><th class="num">Im Depot</th><th></th></tr></thead>
+  <tbody>
+  {% for p in portfolios %}
+  <tr class="{{ 'hl' if p.id == depot }}">
+    <td><a href="/depot/{{ p.id }}">{{ p.name }}</a></td>
+    <td class="num">{{ p.cash|money(p.currency) }}</td>
+    <td class="num">{{ p.quantity|qty if p.quantity else '–' }}</td>
+    <td class="row-actions">
+      <a class="btn sm buy" href="/depot/{{ p.id }}/handel/{{ inst.id }}?side=buy">Kaufen</a>
+      {% if p.quantity %}<a class="btn sm sell" href="/depot/{{ p.id }}/handel/{{ inst.id }}?side=sell">Verkaufen</a>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<div class="card empty"><p>Leg zuerst ein <a href="/">Depot</a> an.</p></div>
+{% endif %}
+{% endblock %}

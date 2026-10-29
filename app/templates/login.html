@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Anmelden · {{ site_name }}{% endblock %}
+{% block main_class %}login-wrap{% endblock %}
+{% block content %}
+<form class="card login-card" method="post" action="/login">
+  <div class="login-brand">
+    <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><rect width="24" height="24" rx="5" fill="var(--accent)"/><path d="M4 17l5-5 4 3 7-8" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h1>{{ site_name }}</h1>
+    <p class="muted">Handel üben – ohne echtes Geld.</p>
+  </div>
+  {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <label>Benutzername<input name="username" value="{{ username or '' }}" autocomplete="username" autofocus required></label>
+  <label>Passwort<input name="password" type="password" autocomplete="current-password" required></label>
+  <button class="btn primary wide">Anmelden</button>
+</form>
+{% endblock %}

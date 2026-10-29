@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Fehler {{ code }} · {{ site_name }}{% endblock %}
+{% block content %}
+<div class="card empty">
+  <h1>{{ 'Nicht gefunden' if code == 404 else 'Fehler ' ~ code }}</h1>
+  <p>{{ message }}</p>
+  <p><a class="btn" href="/">Zur Übersicht</a></p>
+</div>
+{% endblock %}

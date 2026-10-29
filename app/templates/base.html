@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}{{ site_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css?v=3">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230f6e56'/><path d='M4 17l5-5 4 3 7-8' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <script src="/static/app.js?v=1" defer></script>
+</head>
+<body>
+{% if user %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect width="24" height="24" rx="5" fill="var(--accent)"/><path d="M4 17l5-5 4 3 7-8" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>{{ site_name }}</span>
+    </a>
+    {% set p = request.url.path %}
+    <nav class="mainnav">
+      <a href="/" class="{{ 'active' if p == '/' or p.startswith('/depot') }}">Depots</a>
+      <a href="/suche" class="{{ 'active' if p.startswith('/suche') or p.startswith('/titel') }}">Titel suchen</a>
+      {% if user.role == 'admin' %}
+      <a href="/admin/benutzer" class="{{ 'active' if p.startswith('/admin/benutzer') }}">Benutzer</a>
+      <a href="/admin/titel" class="{{ 'active' if p.startswith('/admin/titel') }}">Kurse</a>
+      {% endif %}
+    </nav>
+    <form class="topsearch" action="/suche" method="get" role="search">
+      <input type="search" name="q" placeholder="Name, Symbol oder ISIN…" aria-label="Titel suchen">
+    </form>
+    <details class="usermenu">
+      <summary class="user-chip" title="{{ user.display_name or user.username }}">{{ (user.display_name or user.username)[:1]|upper }}</summary>
+      <div class="usermenu-panel">
+        <div class="usermenu-name">{{ user.display_name or user.username }}<span>@{{ user.username }}{{ ' · Administrator' if user.role == 'admin' }}</span></div>
+        <a href="/konto">Mein Konto</a>
+        <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button>Abmelden</button></form>
+      </div>
+    </details>
+  </div>
+</header>
+{% endif %}
+{% if offline %}<div class="banner">Offline-Modus: Es werden keine Kurse aus dem Internet geholt.</div>{% endif %}
+{% if flash %}<div class="flash flash-{{ flash.kind }}" role="status">{{ flash.msg }}</div>{% endif %}
+<main class="{% block main_class %}container{% endblock %}">
+{% block content %}{% endblock %}
+</main>
+<footer class="footer">{{ site_name }} · Simulation ohne echtes Geld · Kurse ohne Gewähr (Yahoo Finance, CoinGecko)</footer>
+</body>
+</html>

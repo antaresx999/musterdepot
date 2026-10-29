@@ -1,0 +1,23 @@
+{% if txs %}
+<div class="card table-card">
+<table class="table">
+  <thead><tr><th>Datum</th><th>Art</th><th>Titel</th><th class="num">Stück</th><th class="num hide-sm">Kurs</th><th class="num hide-sm">Gebühr</th><th class="num">Betrag {{ pf.currency }}</th><th class="num hide-sm">Realisiert</th></tr></thead>
+  <tbody>
+  {% for t in txs %}
+  <tr>
+    <td class="sub">{{ t.created_at|dt }}</td>
+    <td><span class="side-{{ t.kind }}">{{ TX_LABELS[t.kind] }}</span>{% if t.note %}<div class="sub">{{ t.note }}</div>{% endif %}</td>
+    <td>{% if t.instrument_id %}<a href="/titel/{{ t.instrument_id }}">{{ t.name }}</a>{% else %}–{% endif %}</td>
+    <td class="num">{{ t.quantity|qty if t.quantity is not none and t.kind in ('buy', 'sell') else '' }}</td>
+    <td class="num hide-sm">{% if t.price %}{{ t.price|price(t.inst_currency) }}{% if t.fx and t.fx != 1 %}<div class="sub">FX {{ '%.4f'|format(t.fx) }}</div>{% endif %}{% endif %}</td>
+    <td class="num hide-sm">{{ t.fee|money if t.fee else '' }}{% if t.tax %}<div class="sub">Steuer {{ t.tax|money }}</div>{% endif %}</td>
+    <td class="num {{ t.amount|signclass }}"><b>{{ t.amount|signed }}</b></td>
+    <td class="num hide-sm {{ t.realized|signclass }}">{{ t.realized|signed if t.realized is not none else '' }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">Noch keine Buchungen.</p>
+{% endif %}
