@@ -189,7 +189,8 @@ ul.plain li { margin-bottom: .5rem; }
 .menu { position: relative; display: inline-block; text-align: left; }
 .menu summary { list-style: none; }
 .menu summary::-webkit-details-marker { display: none; }
-.menu-panel { position: absolute; right: 0; top: 100%; margin-top: 4px; z-index: 5; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: .6rem; min-width: 240px; display: grid; gap: .5rem; white-space: normal; }
+/* Position wird per JavaScript gesetzt (fixed), damit Tabellenrahmen das Menü nicht abschneiden */
+.menu-panel { position: fixed; z-index: 20; max-width: calc(100vw - 16px); background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: .6rem; min-width: 240px; display: grid; gap: .5rem; white-space: normal; }
 .menu-panel label { margin-bottom: .3rem; }
 .menu-panel .btn { width: 100%; }
 

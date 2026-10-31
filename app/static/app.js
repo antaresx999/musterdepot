@@ -34,6 +34,30 @@ document.addEventListener("submit", (e) => {
   const f = e.target.closest("form[data-confirm]");
   if (f && !confirm(f.dataset.confirm)) e.preventDefault();
 });
+// Aktionen-Menüs in Tabellen: frei über der Seite anzeigen (sonst schneidet der
+// scrollbare Tabellenrahmen sie ab). Unten zu wenig Platz -> nach oben öffnen.
+function placeMenu(d) {
+  const panel = d.querySelector(".menu-panel");
+  if (!panel) return;
+  const r = d.querySelector("summary").getBoundingClientRect();
+  const w = panel.offsetWidth, h = panel.offsetHeight, gap = 4, edge = 8;
+  const left = Math.max(edge, Math.min(r.right - w, window.innerWidth - w - edge));
+  let top = r.bottom + gap;
+  if (top + h > window.innerHeight - edge && r.top - h - gap > edge) top = r.top - h - gap;
+  panel.style.left = left + "px";
+  panel.style.top = top + "px";
+}
+document.querySelectorAll("details.menu").forEach((d) => {
+  d.addEventListener("toggle", () => {
+    if (!d.open) return;
+    document.querySelectorAll("details.menu[open]").forEach((o) => { if (o !== d) o.removeAttribute("open"); });
+    placeMenu(d);
+  });
+});
+const repositionOpenMenus = () => document.querySelectorAll("details.menu[open]").forEach(placeMenu);
+window.addEventListener("scroll", repositionOpenMenus, true);
+window.addEventListener("resize", repositionOpenMenus);
+
 // Offene Menüs schliessen, wenn daneben geklickt wird
 document.addEventListener("click", (e) => {
   document.querySelectorAll("details.menu[open], details.usermenu[open]").forEach((d) => {

@@ -6,13 +6,13 @@
   <button class="btn primary" data-open="dlg-user">+ Neuer Benutzer</button>
 </div>
 <div class="card table-card"><table class="table">
-  <thead><tr><th>Benutzer</th><th>Rolle</th><th class="num">Depots</th><th class="hide-sm">Letzte Anmeldung</th><th></th></tr></thead>
+  <thead><tr><th>Benutzer</th><th>Rolle</th><th class="num hide-sm">Depots</th><th class="hide-sm">Letzte Anmeldung</th><th></th></tr></thead>
   <tbody>
   {% for u in users %}
   <tr class="{{ 'muted-row' if not u.active }}">
     <td><b>{{ u.username }}</b>{% if u.display_name %}<div class="sub">{{ u.display_name }}</div>{% endif %}{% if not u.active %}<div class="sub warn">gesperrt</div>{% endif %}</td>
     <td>{{ 'Administrator' if u.role == 'admin' else 'Benutzer' }}</td>
-    <td class="num">{{ u.depots }}</td>
+    <td class="num hide-sm">{{ u.depots }}</td>
     <td class="hide-sm sub">{{ u.last_login|dt or 'nie' }}</td>
     <td class="row-actions">
       <details class="menu">
